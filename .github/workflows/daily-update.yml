@@ -36,3 +36,4 @@ jobs:
             git commit -m "auto: daily data refresh $(date -u +%Y-%m-%d)"
             git push
           fi
+# trigger reindex
