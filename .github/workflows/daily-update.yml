@@ -1,0 +1,38 @@
+name: Daily data refresh
+
+on:
+  schedule:
+    - cron: '0 9 * * 1-5'   # 09:00 UTC = 17:00 Asia/Taipei, Mon-Fri
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Refresh market data
+        run: python scripts/daily_update.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "tw-stock-chip-radar-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --quiet -- index.html; then
+            echo "No data changes today (e.g. market holiday) - nothing to commit."
+          else
+            git add index.html
+            git commit -m "auto: daily data refresh $(date -u +%Y-%m-%d)"
+            git push
+          fi

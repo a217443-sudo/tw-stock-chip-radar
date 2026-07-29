@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="台積電供應鏈 27 檔觀察股的籌碼/成長/估值篩選工具，股價與法人籌碼每日自動更新">
+<meta property="og:title" content="台股籌碼雷達">
+<meta property="og:description" content="台積電供應鏈 27 檔觀察股，每日自動更新籌碼與股價，一鍵產生精選三檔">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%A1%3C/text%3E%3C/svg%3E">
+<title>台股籌碼雷達</title>
+</head>
+<body>
+
+<style>
+  :root{
+    --paper:#eef0ee;
+    --panel:#ffffff;
+    --ink:#171a1f;
+    --ink-muted:#5b636a;
+    --ink-faint:#8b939a;
+    --line:rgba(23,26,31,.12);
+    --line-strong:rgba(23,26,31,.22);
+    --brass:#a97a2f;
+    --brass-strong:#8a611f;
+    --brass-soft:rgba(169,122,47,.14);
+    --teal:#276f68;
+    --up:#c2453b;
+    --down:#1f8a5c;
+    --row-hover:#e6e8e4;
+    --shadow:0 1px 2px rgba(23,26,31,.07),0 6px 20px rgba(23,26,31,.05);
+    --console-ink:#12151b;
+    --console-panel:#1a1f27;
+    --console-line:rgba(255,255,255,.09);
+    --console-text:#e9e7df;
+    --console-muted:#9aa1a8;
+    --font-cjk:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;
+    --font-mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Consolas,monospace;
+    --radius:4px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0f1216;
+      --panel:#171b21;
+      --ink:#e8e9ea;
+      --ink-muted:#9aa1a8;
+      --ink-faint:#666e76;
+      --line:rgba(255,255,255,.1);
+      --line-strong:rgba(255,255,255,.18);
+      --brass:#d3a35a;
+      --brass-strong:#e8bc72;
+      --brass-soft:rgba(211,163,90,.14);
+      --teal:#4fa89e;
+      --up:#e2685d;
+      --down:#3fbf85;
+      --row-hover:#1f242c;
+      --shadow:0 1px 2px rgba(0,0,0,.5),0 6px 20px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0f1216;--panel:#171b21;--ink:#e8e9ea;--ink-muted:#9aa1a8;--ink-faint:#666e76;
+    --line:rgba(255,255,255,.1);--line-strong:rgba(255,255,255,.18);
+    --brass:#d3a35a;--brass-strong:#e8bc72;--brass-soft:rgba(211,163,90,.14);
+    --teal:#4fa89e;--up:#e2685d;--down:#3fbf85;--row-hover:#1f242c;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 6px 20px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"]{
+    --paper:#eef0ee;--panel:#ffffff;--ink:#171a1f;--ink-muted:#5b636a;--ink-faint:#8b939a;
+    --line:rgba(23,26,31,.12);--line-strong:rgba(23,26,31,.22);
+    --brass:#a97a2f;--brass-strong:#8a611f;--brass-soft:rgba(169,122,47,.14);
+    --teal:#276f68;--up:#c2453b;--down:#1f8a5c;--row-hover:#e6e8e4;
+    --shadow:0 1px 2px rgba(23,26,31,.07),0 6px 20px rgba(23,26,31,.05);
+  }
+  *{box-sizing:border-box;}
+  @media (prefers-reduced-motion:reduce){ *{animation-duration:.001ms !important;transition-duration:.001ms !important;} }
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:var(--font-cjk);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:2rem 1.25rem 5rem;}
+  a{color:inherit;}
+  ::selection{background:var(--brass-soft);}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+
+  /* ---------- topbar ---------- */
+  .topbar{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+  .brand{display:flex;align-items:baseline;gap:.6rem;}
+  .brand-mark{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;color:var(--brass);border:1px solid var(--line-strong);padding:.15rem .4rem;border-radius:3px;}
+  .brand-name{font-size:1.05rem;font-weight:700;letter-spacing:.02em;}
+  .snapshot-pill{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-muted);letter-spacing:.03em;white-space:nowrap;}
+  .snapshot-pill b{color:var(--ink);font-weight:600;}
+
+  /* ---------- console (hero) ---------- */
+  .console{
+    background:linear-gradient(165deg,var(--console-panel) 0%,var(--console-ink) 100%);
+    color:var(--console-text);
+    border-radius:6px;
+    border:1px solid var(--console-line);
+    padding:1.9rem 1.9rem 1.6rem;
+    box-shadow:var(--shadow);
+    position:relative;
+    overflow:hidden;
+  }
+  .console::before{
+    content:"";position:absolute;inset:0 0 auto 0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--brass-strong),transparent);
+    opacity:.55;
+  }
+  .console-eyebrow{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.16em;color:var(--brass-strong);text-transform:uppercase;margin:0 0 .55rem;}
+  .console h1{font-size:1.65rem;margin:0 0 .5rem;text-wrap:balance;font-weight:800;letter-spacing:.01em;}
+  .console p.sub{margin:0 0 1.4rem;color:var(--console-muted);max-width:56ch;font-size:.92rem;}
+
+  .dials{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem;margin-bottom:1.5rem;}
+  .dial{background:rgba(255,255,255,.03);border:1px solid var(--console-line);border-radius:4px;padding:.75rem .85rem;}
+  .dial-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.4rem;}
+  .dial-label{font-size:.78rem;color:var(--console-text);font-weight:600;}
+  .dial-value{font-family:var(--font-mono);font-size:.78rem;color:var(--brass-strong);}
+  input[type="range"]{
+    -webkit-appearance:none;appearance:none;width:100%;height:3px;
+    background:rgba(255,255,255,.18);border-radius:2px;outline-offset:6px;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+    background:var(--brass-strong);border:2px solid #12151b;cursor:pointer;margin-top:-5.5px;
+  }
+  input[type="range"]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--brass-strong);border:2px solid #12151b;cursor:pointer;}
+  input[type="range"]::-moz-range-track{height:3px;background:rgba(255,255,255,.18);border-radius:2px;}
+  .dial-hint{font-size:.68rem;color:var(--console-muted);margin-top:.35rem;}
+
+  .console-actions{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;}
+  .cta{
+    font-family:var(--font-cjk);font-weight:700;font-size:.92rem;letter-spacing:.02em;
+    background:linear-gradient(180deg,var(--brass-strong),var(--brass));
+    color:#171308;border:none;border-radius:4px;padding:.75rem 1.4rem;cursor:pointer;
+    box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 8px 18px rgba(0,0,0,.35);
+    transition:transform .12s ease, box-shadow .12s ease;
+    position:relative;
+  }
+  .cta:hover{transform:translateY(-1px);}
+  .cta:active{transform:translateY(0);}
+  .cta .stale-dot{position:absolute;top:-5px;right:-5px;width:10px;height:10px;border-radius:50%;background:var(--up);border:2px solid var(--console-ink);display:none;}
+  .cta.is-stale .stale-dot{display:block;}
+  .cta-note{font-size:.74rem;color:var(--console-muted);}
+
+  /* ---------- recommendation panel ---------- */
+  .reco-section{margin-top:1.75rem;}
+  .reco-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:.85rem;flex-wrap:wrap;}
+  .reco-title{font-size:1.05rem;font-weight:700;}
+  .reco-scope{font-size:.78rem;color:var(--ink-muted);font-family:var(--font-mono);}
+  .reco-empty{border:1px dashed var(--line-strong);border-radius:6px;padding:2.2rem 1rem;text-align:center;color:var(--ink-faint);font-size:.88rem;}
+  .reco-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;}
+  @media (max-width:900px){ .reco-grid{grid-template-columns:1fr;} .dials{grid-template-columns:1fr;} }
+
+  .reco-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;
+    padding:1.1rem 1.15rem 1.25rem;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:.7rem;
+  }
+  .reco-rank{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.1em;color:var(--brass);font-weight:700;}
+  .reco-name-row{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;}
+  .reco-name{font-size:1.15rem;font-weight:800;}
+  .reco-code{font-family:var(--font-mono);color:var(--ink-faint);font-size:.82rem;}
+  .reco-tags{display:flex;gap:.4rem;flex-wrap:wrap;}
+  .chip{font-size:.68rem;padding:.18rem .5rem;border-radius:99px;border:1px solid var(--line-strong);color:var(--ink-muted);font-family:var(--font-cjk);white-space:nowrap;}
+  .chip.risk{color:var(--up);border-color:color-mix(in srgb, var(--up) 45%, transparent);background:color-mix(in srgb, var(--up) 8%, transparent);}
+
+  .score-row{display:flex;align-items:center;gap:.6rem;}
+  .score-bar-track{flex:1;height:6px;border-radius:99px;background:var(--line);overflow:hidden;}
+  .score-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--teal),var(--brass));}
+  .score-num{font-family:var(--font-mono);font-weight:700;font-size:.95rem;min-width:2.6em;text-align:right;}
+
+  .reco-bullets{display:flex;flex-direction:column;gap:.5rem;font-size:.82rem;color:var(--ink);}
+  .reco-bullets .b{display:flex;gap:.5rem;}
+  .b-tag{flex:0 0 auto;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.06em;color:var(--teal);border:1px solid var(--line-strong);border-radius:3px;padding:.1rem .32rem;height:fit-content;margin-top:.1rem;}
+  .b-text{color:var(--ink-muted);}
+  .b-text b{color:var(--ink);font-weight:600;}
+  .up{color:var(--up);} .down{color:var(--down);}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{margin-top:2.4rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  .filters{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
+  .chip-toggle{
+    font-size:.76rem;padding:.32rem .65rem;border-radius:99px;border:1px solid var(--line-strong);
+    background:transparent;color:var(--ink-muted);cursor:pointer;font-family:var(--font-cjk);
+  }
+  .chip-toggle.active{background:var(--brass-soft);color:var(--brass-strong);border-color:var(--brass);}
+  .search-box{
+    font-family:var(--font-cjk);font-size:.82rem;padding:.4rem .7rem;border-radius:4px;
+    border:1px solid var(--line-strong);background:var(--panel);color:var(--ink);min-width:11rem;
+  }
+  .search-box::placeholder{color:var(--ink-faint);}
+
+  /* ---------- table ---------- */
+  .table-note{font-size:.74rem;color:var(--ink-faint);margin:.9rem 0 .5rem;}
+  .table-wrap{overflow:auto;max-height:74vh;border:1px solid var(--line);border-radius:6px;background:var(--panel);}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:.8rem;}
+  thead th{
+    position:sticky;top:0;background:var(--panel);z-index:2;border-bottom:1px solid var(--line-strong);
+    text-align:right;padding:.6rem .65rem;font-family:var(--font-cjk);font-weight:700;font-size:.74rem;
+    cursor:pointer;white-space:nowrap;color:var(--ink-muted);user-select:none;
+  }
+  thead th:hover{color:var(--ink);}
+  thead th.sorted{color:var(--brass-strong);}
+  thead th:first-child{text-align:left;left:0;z-index:3;}
+  tbody td{padding:.5rem .65rem;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  tbody td:first-child{position:sticky;left:0;background:var(--panel);z-index:1;text-align:left;font-family:var(--font-cjk);}
+  tbody tr.data-row{cursor:pointer;}
+  tbody tr.data-row:hover td{background:var(--row-hover);}
+  .name-cell{display:flex;flex-direction:column;gap:.05rem;}
+  .name-cell .nm{font-weight:700;font-family:var(--font-cjk);font-size:.85rem;}
+  .name-cell .cd{color:var(--ink-faint);font-size:.7rem;}
+  .sector-tag{font-size:.68rem;color:var(--ink-muted);font-family:var(--font-cjk);}
+  .mini-score{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;}
+  .mini-score .track{width:44px;height:5px;border-radius:99px;background:var(--line);overflow:hidden;}
+  .mini-score .fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--brass));}
+  .flag-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-left:.35rem;vertical-align:middle;}
+
+  tr.detail-row td{background:var(--paper);padding:1rem 1.1rem 1.3rem;text-align:left;cursor:default;}
+  .detail-grid{display:flex;gap:2.2rem;flex-wrap:wrap;font-family:var(--font-cjk);}
+  .flow-block{min-width:260px;}
+  .flow-title{font-size:.72rem;color:var(--ink-muted);margin-bottom:.5rem;font-family:var(--font-mono);letter-spacing:.04em;}
+  .flow-chart{height:56px;display:flex;align-items:center;gap:3px;position:relative;border-top:1px dashed var(--line-strong);padding-top:0;}
+  .flow-col{flex:1;height:56px;position:relative;}
+  .flow-bar{position:absolute;left:50%;transform:translateX(-50%);width:64%;border-radius:1px;}
+  .flow-bar.pos{bottom:50%;background:var(--up);}
+  .flow-bar.neg{top:50%;background:var(--down);}
+  .flow-range{font-size:.68rem;color:var(--ink-faint);margin-top:.4rem;font-family:var(--font-mono);}
+  .detail-metrics{font-size:.78rem;color:var(--ink-muted);display:grid;grid-template-columns:repeat(2,auto);gap:.3rem 1.5rem;align-content:start;}
+  .detail-metrics b{color:var(--ink);font-weight:600;}
+
+  /* ---------- footer ---------- */
+  footer{margin-top:3rem;border-top:1px solid var(--line);padding-top:1.4rem;}
+  details{font-size:.82rem;color:var(--ink-muted);margin-bottom:.9rem;}
+  summary{cursor:pointer;color:var(--ink);font-weight:600;font-size:.85rem;}
+  details[open] summary{margin-bottom:.5rem;}
+  .method-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:.6rem;}
+  @media (max-width:900px){.method-grid{grid-template-columns:1fr;}}
+  .method-card{border:1px solid var(--line);border-radius:4px;padding:.7rem .8rem;}
+  .method-card h4{margin:0 0 .3rem;font-size:.8rem;color:var(--ink);}
+  .method-card p{margin:0;font-size:.76rem;line-height:1.6;}
+  .disclaimer{font-size:.75rem;color:var(--ink-faint);line-height:1.7;}
+</style>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark">RADAR</span>
+      <span class="brand-name">台股籌碼雷達</span>
+    </div>
+    <div class="snapshot-pill">市場資料 <b id="snapshotDate">—</b> 收盤後更新 · 基本面資料 <b id="fundamentalsDate">—</b> · 27 檔觀察名單</div>
+  </div>
+
+  <div class="console">
+    <p class="console-eyebrow">DAILY AUTO REFRESH · TWSE / TPEx OPEN DATA</p>
+    <h1>用籌碼、成長、估值三個權重，重新排序你的觀察名單</h1>
+    <p class="sub">股價與三大法人買賣超每個交易日收盤後自動從證交所／櫃買中心公開資料更新；EPS預估、毛利率、股本等基本面數字則維持你朋友整理的原始數值（更新頻率低，見下方說明）。調整下面三個權重，按「產生本日精選三檔」，會依目前的篩選條件與權重，挑出綜合評分最高的三檔並列出理由。</p>
+
+    <div class="dials">
+      <div class="dial">
+        <div class="dial-head"><span class="dial-label">籌碼動能</span><span class="dial-value" id="wMomentumVal">35</span></div>
+        <input type="range" min="0" max="100" value="35" id="wMomentum" aria-label="籌碼動能權重">
+        <div class="dial-hint">近10個交易日外資＋投信合計買超占股本比例、近5日買賣超天數</div>
+      </div>
+      <div class="dial">
+        <div class="dial-head"><span class="dial-label">獲利成長</span><span class="dial-value" id="wGrowthVal">35</span></div>
+        <input type="range" min="0" max="100" value="35" id="wGrowth" aria-label="獲利成長權重">
+        <div class="dial-hint">2026年預估EPS 相對 2025年全年的成長幅度</div>
+      </div>
+      <div class="dial">
+        <div class="dial-head"><span class="dial-label">估值合理性</span><span class="dial-value" id="wValuationVal">30</span></div>
+        <input type="range" min="0" max="100" value="30" id="wValuation" aria-label="估值合理性權重">
+        <div class="dial-hint">本益比在名單中的相對高低、股價距52週高點的空間</div>
+      </div>
+    </div>
+
+    <div class="console-actions">
+      <button class="cta" id="generateBtn">產生本日精選三檔<span class="stale-dot"></span></button>
+      <span class="cta-note">依目前篩選條件與權重計算，屬資料整理結果，非投資建議</span>
+    </div>
+  </div>
+
+  <div class="reco-section">
+    <div class="reco-head">
+      <span class="reco-title">精選三檔</span>
+      <span class="reco-scope" id="recoScope"></span>
+    </div>
+    <div id="recoArea"><div class="reco-empty">點擊上方「產生本日精選三檔」查看結果</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="filters" id="groupFilters"></div>
+    <input class="search-box" id="searchBox" type="text" placeholder="搜尋股票名稱或代號…">
+  </div>
+  <p class="table-note">點擊欄位標題排序；點擊任一列可展開近10日外資／投信買賣超（張）。紅色＝買超／上升，綠色＝賣超／下降（依台股慣例）。</p>
+
+  <div class="table-wrap">
+    <table id="stockTable">
+      <thead>
+        <tr>
+          <th data-key="name">股票</th>
+          <th data-key="group">產業</th>
+          <th data-key="price">現價</th>
+          <th data-key="pctOfHigh">現價/52週高</th>
+          <th data-key="pe">本益比</th>
+          <th data-key="momentum">10日籌碼動能</th>
+          <th data-key="flowDays">近5日買超天數(外/投)</th>
+          <th data-key="grossMargin">毛利率</th>
+          <th data-key="growthPct">EPS成長(26E/25)</th>
+          <th data-key="composite" class="sorted">綜合評分</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <details>
+      <summary>評分方法怎麼算的？</summary>
+      <div class="method-grid">
+        <div class="method-card">
+          <h4>籌碼動能分數</h4>
+          <p>取近10個交易日「外資買超合計＋投信買超合計」占股本比例的平均值（先收斂到 ±3% 避免極端值失真），加上近5日外資、投信買超天數的一致性，兩者以 7:3 混合。單一法人10日內買賣超超過股本8%時，會標記為波動極端並打折計分。</p>
+        </div>
+        <div class="method-card">
+          <h4>獲利成長分數</h4>
+          <p>以 (2026年預估EPS − 2025年全年EPS) ÷ max(|2025年EPS|, 1) 計算成長幅度，分母下限設為 1，避免 EPS 基期過小時百分比失真，成長區間收斂在 −100%～+200%。若2025年EPS本身接近零或虧損，成長分數封頂65分，避免轉虧為盈的小型股單靠基期效應就拿滿分。</p>
+        </div>
+        <div class="method-card">
+          <h4>估值分數</h4>
+          <p>本益比在目前篩選出的名單中由低到高排名（愈低分數愈高，佔六成），加上股價距52週高點的空間（愈遠離高點分數愈高，佔四成）。</p>
+        </div>
+      </div>
+      <p style="margin-top:.7rem;">綜合評分 = 三項分數依你設定的權重加權平均，滿分100。所有排名與估值分數都是在「目前篩選條件」下的相對比較，不是與全市場比較。</p>
+    </details>
+    <details>
+      <summary>資料怎麼更新？</summary>
+      <p style="font-size:.82rem;color:var(--ink-muted);">
+        一套排程機器人會在每個交易日收盤後，自動向台灣證券交易所（TWSE）與證券櫃買中心（TPEx）的公開資料 API 抓取最新收盤價、以及近10個交易日三大法人（外資／投信／自營商）買賣超，重新計算後自動發布到這個網址，不需要你手動操作。<br><br>
+        但 EPS 預估、毛利率、股本、52週高點這幾項數字，公開資料沒有現成的每日來源可以低成本自動取得（EPS預估多半是券商研究才有；真正的52週高點需要抓一整年的歷史股價，暫時不在每日自動更新範圍內），所以會維持你朋友整理當下的數值，不會每天變動。如果之後想更新，一樣可以把新的 Excel 或數字給我，我會重新整理這幾個欄位。
+      </p>
+    </details>
+    <p class="disclaimer">
+      股價與籌碼資料來自台灣證券交易所、證券櫃買中心公開資料 API；EPS預估、毛利率等基本面資料整理自你朋友提供的個人觀察表，更新頻率較低，實際交易前請以官方即時報價與財報為準。
+      綜合評分僅為依籌碼、成長、估值三個可得指標所做的量化排序方法，用途是縮小觀察範圍，並不構成個股買賣建議，也不構成任何投資邀約。
+      本工具不是持牌投資顧問服務，實際投資決策請自行評估風險承受度，或諮詢合格理財顧問。
+    </p>
+  </footer>
+</div>
+
+<script>
+const DATA = /*BEGIN_DATA*/[{"code":1560,"name":"中砂","sector":"材料(精密加工)","group":"材料","price":635.0,"high52w":718,"pe":42.33,"momentum":-0.0034,"foreignChg20d":-0.0131,"trustChg20d":0.0064,"capital":14.89,"grossMargin":34.18,"eps2026e":15,"eps2025":9.28,"eps2024":7.1,"foreign5dSum":-1407,"trust5dSum":788,"dealer5dSum":-155,"foreign5dPosDays":0,"trust5dPosDays":4,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":370.4,"t":-294.0},{"d":"115/07/17","f":-940.4,"t":62.0},{"d":"115/07/20","f":-193.3,"t":114.0},{"d":"115/07/21","f":-48.0,"t":1.0},{"d":"115/07/22","f":266.0,"t":278.0},{"d":"115/07/23","f":-31.9,"t":0.0},{"d":"115/07/24","f":-221.3,"t":1.0},{"d":"115/07/27","f":-376.6,"t":533.0},{"d":"115/07/28","f":-426.2,"t":249.8},{"d":"115/07/29","f":-351.3,"t":4.0}]},{"code":1809,"name":"中釉","sector":"材料(陶瓷)","group":"材料","price":33.65,"high52w":59.6,"pe":61.18,"momentum":0.0098,"foreignChg20d":0.0196,"trustChg20d":0.0,"capital":16.7,"grossMargin":19.37,"eps2026e":0.55,"eps2025":0.19,"eps2024":0.33,"foreign5dSum":1519,"trust5dSum":0,"dealer5dSum":43,"foreign5dPosDays":3,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":true,"flow10":[{"d":"115/07/16","f":199.3,"t":0.0},{"d":"115/07/17","f":990.0,"t":0.0},{"d":"115/07/20","f":676.9,"t":0.0},{"d":"115/07/21","f":-169.1,"t":0.0},{"d":"115/07/22","f":49.1,"t":0.0},{"d":"115/07/23","f":-16.5,"t":0.0},{"d":"115/07/24","f":-7.7,"t":0.0},{"d":"115/07/27","f":237.2,"t":0.0},{"d":"115/07/28","f":300.0,"t":0.0},{"d":"115/07/29","f":1006.0,"t":0.0}]},{"code":2317,"name":"鴻海","sector":"權值/電子代工","group":"權值指標","price":238.0,"high52w":357,"pe":12.53,"momentum":0.0016,"foreignChg20d":0.0029,"trustChg20d":0.0004,"capital":1400.34,"grossMargin":6.18,"eps2026e":19,"eps2025":13.62,"eps2024":11.01,"foreign5dSum":-2640,"trust5dSum":3662,"dealer5dSum":4864,"foreign5dPosDays":2,"trust5dPosDays":5,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":6698.5,"t":-1056.1},{"d":"115/07/17","f":-4268.2,"t":-695.8},{"d":"115/07/20","f":60.9,"t":449.8},{"d":"115/07/21","f":22635.3,"t":2099.8},{"d":"115/07/22","f":17679.9,"t":661.0},{"d":"115/07/23","f":23754.7,"t":559.9},{"d":"115/07/24","f":-5514.9,"t":75.7},{"d":"115/07/27","f":522.5,"t":737.7},{"d":"115/07/28","f":-20086.4,"t":1194.2},{"d":"115/07/29","f":-1315.5,"t":1094.2}]},{"code":2330,"name":"台積電","sector":"權值/晶圓代工","group":"權值指標","price":2280.0,"high52w":2365,"pe":22.8,"momentum":-0.0016,"foreignChg20d":-0.0035,"trustChg20d":0.0003,"capital":2593.24,"grossMargin":66.25,"eps2026e":100,"eps2025":66.26,"eps2024":45.25,"foreign5dSum":-42783,"trust5dSum":2080,"dealer5dSum":11771,"foreign5dPosDays":0,"trust5dPosDays":4,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-4214.7,"t":528.4},{"d":"115/07/17","f":-44184.0,"t":1488.5},{"d":"115/07/20","f":-1672.1,"t":1048.7},{"d":"115/07/21","f":4975.7,"t":973.7},{"d":"115/07/22","f":-3538.6,"t":1562.1},{"d":"115/07/23","f":-4614.4,"t":-943.3},{"d":"115/07/24","f":-9636.6,"t":549.8},{"d":"115/07/27","f":-2661.8,"t":566.9},{"d":"115/07/28","f":-14659.3,"t":284.3},{"d":"115/07/29","f":-11210.9,"t":1622.4}]},{"code":2360,"name":"致茂","sector":"設備(測試)","group":"設備與耗材","price":1940.0,"high52w":2565,"pe":48.5,"momentum":-0.0018,"foreignChg20d":-0.0136,"trustChg20d":0.01,"capital":42.52,"grossMargin":60.8,"eps2026e":40,"eps2025":27.68,"eps2024":12.49,"foreign5dSum":-2230,"trust5dSum":1750,"dealer5dSum":181,"foreign5dPosDays":0,"trust5dPosDays":5,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-1122.0,"t":685.8},{"d":"115/07/17","f":-727.6,"t":334.0},{"d":"115/07/20","f":-109.1,"t":98.0},{"d":"115/07/21","f":-1012.4,"t":713.0},{"d":"115/07/22","f":-579.1,"t":686.7},{"d":"115/07/23","f":-469.5,"t":197.9},{"d":"115/07/24","f":-97.9,"t":292.6},{"d":"115/07/27","f":-605.8,"t":254.7},{"d":"115/07/28","f":-447.7,"t":435.1},{"d":"115/07/29","f":-608.6,"t":569.6}]},{"code":2379,"name":"瑞昱","sector":"IC設計","group":"IC設計","price":731.0,"high52w":744.0,"pe":22.15,"momentum":0.0004,"foreignChg20d":0.0008,"trustChg20d":0.0001,"capital":51.55,"grossMargin":49.7,"eps2026e":33,"eps2025":28.77,"eps2024":29.8,"foreign5dSum":-352,"trust5dSum":897,"dealer5dSum":-175,"foreign5dPosDays":3,"trust5dPosDays":5,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":1076.9,"t":-1149.8},{"d":"115/07/17","f":1268.7,"t":-796.5},{"d":"115/07/20","f":-557.8,"t":513.5},{"d":"115/07/21","f":-218.4,"t":362.7},{"d":"115/07/22","f":-814.1,"t":203.4},{"d":"115/07/23","f":-902.6,"t":348.7},{"d":"115/07/24","f":222.7,"t":105.0},{"d":"115/07/27","f":734.4,"t":22.4},{"d":"115/07/28","f":-552.6,"t":177.8},{"d":"115/07/29","f":146.0,"t":243.4}]},{"code":2455,"name":"全新","sector":"化合物半導體","group":"化合物半導體","price":302.5,"high52w":425,"pe":50.42,"momentum":0.0075,"foreignChg20d":0.0106,"trustChg20d":0.0043,"capital":18.49,"grossMargin":37.27,"eps2026e":6,"eps2025":2.96,"eps2024":3.63,"foreign5dSum":-179,"trust5dSum":516,"dealer5dSum":-242,"foreign5dPosDays":2,"trust5dPosDays":5,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":551.5,"t":2.0},{"d":"115/07/17","f":860.9,"t":47.0},{"d":"115/07/20","f":1359.8,"t":-63.0},{"d":"115/07/21","f":-700.5,"t":94.0},{"d":"115/07/22","f":72.4,"t":198.0},{"d":"115/07/23","f":1481.5,"t":362.0},{"d":"115/07/24","f":-1898.0,"t":59.0},{"d":"115/07/27","f":-274.3,"t":30.0},{"d":"115/07/28","f":736.5,"t":42.0},{"d":"115/07/29","f":-224.8,"t":23.0}]},{"code":2464,"name":"盟立","sector":"工程/自動化","group":"工程/自動化","price":131.0,"high52w":184.5,"pe":65.5,"momentum":0.0083,"foreignChg20d":0.0153,"trustChg20d":0.0014,"capital":20.64,"grossMargin":17.62,"eps2026e":2,"eps2025":-0.83,"eps2024":0.52,"foreign5dSum":918,"trust5dSum":280,"dealer5dSum":-444,"foreign5dPosDays":4,"trust5dPosDays":1,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":true,"flow10":[{"d":"115/07/16","f":-181.3,"t":0.0},{"d":"115/07/17","f":1218.9,"t":0.0},{"d":"115/07/20","f":1446.3,"t":0.0},{"d":"115/07/21","f":-433.1,"t":0.0},{"d":"115/07/22","f":182.4,"t":0.0},{"d":"115/07/23","f":35.3,"t":0.0},{"d":"115/07/24","f":-596.0,"t":0.0},{"d":"115/07/27","f":593.0,"t":0.0},{"d":"115/07/28","f":118.0,"t":0.0},{"d":"115/07/29","f":767.4,"t":280.0}]},{"code":2467,"name":"志聖","sector":"設備","group":"設備與耗材","price":508.0,"high52w":619,"pe":42.33,"momentum":0.0009,"foreignChg20d":0.0035,"trustChg20d":-0.0016,"capital":15.68,"grossMargin":49.47,"eps2026e":12,"eps2025":5.52,"eps2024":4.8,"foreign5dSum":-59,"trust5dSum":6,"dealer5dSum":244,"foreign5dPosDays":2,"trust5dPosDays":4,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":1040.3,"t":-2.7},{"d":"115/07/17","f":-479.9,"t":-25.7},{"d":"115/07/20","f":-43.3,"t":10.1},{"d":"115/07/21","f":-62.0,"t":-212.0},{"d":"115/07/22","f":147.3,"t":-32.9},{"d":"115/07/23","f":90.4,"t":-34.0},{"d":"115/07/24","f":-101.5,"t":1.0},{"d":"115/07/27","f":59.9,"t":4.1},{"d":"115/07/28","f":-15.4,"t":6.0},{"d":"115/07/29","f":-92.8,"t":29.0}]},{"code":3081,"name":"聯亞","sector":"化合物半導體/光通訊","group":"化合物半導體","price":1540.0,"high52w":2820,"pe":102.67,"momentum":-0.0121,"foreignChg20d":-0.038,"trustChg20d":0.0138,"capital":9.25,"grossMargin":48.67,"eps2026e":15,"eps2025":4.66,"eps2024":-0.15,"foreign5dSum":-4515,"trust5dSum":1941,"dealer5dSum":-58,"foreign5dPosDays":0,"trust5dPosDays":5,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":140.7,"t":-170.4},{"d":"115/07/17","f":667.2,"t":-58.9},{"d":"115/07/20","f":330.3,"t":-326.5},{"d":"115/07/21","f":-102.9,"t":-106.8},{"d":"115/07/22","f":-33.3,"t":1.0},{"d":"115/07/23","f":-419.3,"t":8.0},{"d":"115/07/24","f":-2278.1,"t":1037.5},{"d":"115/07/27","f":-1460.9,"t":465.0},{"d":"115/07/28","f":-246.1,"t":385.0},{"d":"115/07/29","f":-110.3,"t":45.2}]},{"code":3105,"name":"穩懋","sector":"化合物半導體","group":"化合物半導體","price":291.0,"high52w":547,"pe":29.1,"momentum":0.003,"foreignChg20d":0.0086,"trustChg20d":-0.0026,"capital":42.39,"grossMargin":31.8,"eps2026e":10,"eps2025":4,"eps2024":1.81,"foreign5dSum":-579,"trust5dSum":-1099,"dealer5dSum":81,"foreign5dPosDays":1,"trust5dPosDays":3,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":962.2,"t":-173.8},{"d":"115/07/17","f":535.5,"t":76.6},{"d":"115/07/20","f":1843.0,"t":113.9},{"d":"115/07/21","f":1473.0,"t":-28.0},{"d":"115/07/22","f":-603.6,"t":-6.7},{"d":"115/07/23","f":-946.9,"t":14.0},{"d":"115/07/24","f":-1226.8,"t":93.6},{"d":"115/07/27","f":2667.9,"t":12.3},{"d":"115/07/28","f":-531.9,"t":-9.0},{"d":"115/07/29","f":-540.9,"t":-1210.3}]},{"code":3131,"name":"弘塑","sector":"設備(濕製程)","group":"設備與耗材","price":2255.0,"high52w":3450,"pe":36.37,"momentum":-0.0041,"foreignChg20d":-0.003,"trustChg20d":-0.0053,"capital":2.92,"grossMargin":33.78,"eps2026e":62,"eps2025":45.39,"eps2024":29.07,"foreign5dSum":146,"trust5dSum":-335,"dealer5dSum":-29,"foreign5dPosDays":3,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-28.6,"t":96.8},{"d":"115/07/17","f":-128.8,"t":50.0},{"d":"115/07/20","f":-18.9,"t":23.1},{"d":"115/07/21","f":-54.4,"t":11.0},{"d":"115/07/22","f":-3.2,"t":0.0},{"d":"115/07/23","f":97.0,"t":-101.0},{"d":"115/07/24","f":75.6,"t":-154.0},{"d":"115/07/27","f":18.0,"t":-75.0},{"d":"115/07/28","f":-4.9,"t":-4.0},{"d":"115/07/29","f":-40.0,"t":-0.6}]},{"code":3167,"name":"大量","sector":"設備(測試耗材)","group":"設備與耗材","price":536.0,"high52w":2565,"pe":35.73,"momentum":-0.0053,"foreignChg20d":0.0016,"trustChg20d":-0.0122,"capital":8.95,"grossMargin":42.12,"eps2026e":15,"eps2025":8.13,"eps2024":1.48,"foreign5dSum":1558,"trust5dSum":-1033,"dealer5dSum":137,"foreign5dPosDays":5,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-173.0,"t":26.0},{"d":"115/07/17","f":-538.7,"t":126.0},{"d":"115/07/20","f":192.5,"t":-22.0},{"d":"115/07/21","f":-45.2,"t":-144.0},{"d":"115/07/22","f":-850.8,"t":-42.0},{"d":"115/07/23","f":720.6,"t":-62.0},{"d":"115/07/24","f":115.0,"t":-177.0},{"d":"115/07/27","f":153.9,"t":-356.0},{"d":"115/07/28","f":330.1,"t":-336.0},{"d":"115/07/29","f":238.6,"t":-102.0}]},{"code":3583,"name":"辛耘","sector":"設備","group":"設備與耗材","price":687.0,"high52w":888,"pe":36.16,"momentum":0.0013,"foreignChg20d":0.011,"trustChg20d":-0.0083,"capital":8.03,"grossMargin":33.58,"eps2026e":19,"eps2025":13.82,"eps2024":11.54,"foreign5dSum":507,"trust5dSum":-143,"dealer5dSum":-81,"foreign5dPosDays":4,"trust5dPosDays":2,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":523.7,"t":-538.0},{"d":"115/07/17","f":-357.6,"t":-34.0},{"d":"115/07/20","f":93.7,"t":11.0},{"d":"115/07/21","f":77.5,"t":-20.0},{"d":"115/07/22","f":37.6,"t":54.0},{"d":"115/07/23","f":-65.6,"t":29.0},{"d":"115/07/24","f":17.3,"t":-60.0},{"d":"115/07/27","f":173.7,"t":12.0},{"d":"115/07/28","f":117.2,"t":-26.0},{"d":"115/07/29","f":264.6,"t":-98.0}]},{"code":3587,"name":"閎康","sector":"檢測服務","group":"封測與檢測","price":215.0,"high52w":367,"pe":16.54,"momentum":0.0031,"foreignChg20d":0.0062,"trustChg20d":0.0,"capital":6.89,"grossMargin":30.02,"eps2026e":13,"eps2025":6.09,"eps2024":10.39,"foreign5dSum":251,"trust5dSum":0,"dealer5dSum":-31,"foreign5dPosDays":3,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-33.0,"t":0.0},{"d":"115/07/17","f":-9.1,"t":0.0},{"d":"115/07/20","f":203.2,"t":0.0},{"d":"115/07/21","f":5.1,"t":0.0},{"d":"115/07/22","f":10.2,"t":0.0},{"d":"115/07/23","f":17.0,"t":0.0},{"d":"115/07/24","f":-192.2,"t":0.0},{"d":"115/07/27","f":-53.3,"t":0.0},{"d":"115/07/28","f":111.3,"t":0.0},{"d":"115/07/29","f":368.0,"t":0.0}]},{"code":3680,"name":"家登","sector":"耗材(晶圓傳送)","group":"設備與耗材","price":385.0,"high52w":598,"pe":25.67,"momentum":-0.004,"foreignChg20d":-0.008,"trustChg20d":-0.0,"capital":9.6,"grossMargin":43.28,"eps2026e":15,"eps2025":9.43,"eps2024":12.32,"foreign5dSum":-507,"trust5dSum":0,"dealer5dSum":-289,"foreign5dPosDays":1,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-227.7,"t":-0.1},{"d":"115/07/17","f":-1543.9,"t":-0.4},{"d":"115/07/20","f":99.1,"t":0.1},{"d":"115/07/21","f":688.9,"t":0.0},{"d":"115/07/22","f":720.5,"t":0.0},{"d":"115/07/23","f":-369.2,"t":0.0},{"d":"115/07/24","f":-219.7,"t":0.0},{"d":"115/07/27","f":-122.2,"t":0.0},{"d":"115/07/28","f":-130.6,"t":0.0},{"d":"115/07/29","f":334.2,"t":0.0}]},{"code":3694,"name":"海華","sector":"模組/物聯網","group":"模組/物聯網","price":55.5,"high52w":100.5,"pe":12.33,"momentum":-0.0038,"foreignChg20d":-0.0075,"trustChg20d":0.0,"capital":15.49,"grossMargin":14.75,"eps2026e":4.5,"eps2025":4.03,"eps2024":2.75,"foreign5dSum":-1351,"trust5dSum":0,"dealer5dSum":-64,"foreign5dPosDays":0,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-549.9,"t":0.0},{"d":"115/07/17","f":33.4,"t":0.0},{"d":"115/07/20","f":-18.0,"t":0.0},{"d":"115/07/21","f":980.2,"t":0.0},{"d":"115/07/22","f":-257.5,"t":0.0},{"d":"115/07/23","f":-244.0,"t":0.0},{"d":"115/07/24","f":-384.5,"t":0.0},{"d":"115/07/27","f":-273.0,"t":0.0},{"d":"115/07/28","f":-325.3,"t":0.0},{"d":"115/07/29","f":-124.5,"t":0.0}]},{"code":4966,"name":"譜瑞-KY","sector":"其他","group":"其他","price":561.0,"high52w":2115,"pe":13.36,"momentum":0.0001,"foreignChg20d":0.0014,"trustChg20d":-0.0013,"capital":7.9,"grossMargin":40.3,"eps2026e":42,"eps2025":34.67,"eps2024":32.55,"foreign5dSum":-118,"trust5dSum":157,"dealer5dSum":-71,"foreign5dPosDays":3,"trust5dPosDays":2,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-174.9,"t":43.2},{"d":"115/07/17","f":-212.1,"t":8.8},{"d":"115/07/20","f":366.1,"t":-312.7},{"d":"115/07/21","f":29.2,"t":0.0},{"d":"115/07/22","f":223.2,"t":0.0},{"d":"115/07/23","f":24.0,"t":0.0},{"d":"115/07/24","f":45.6,"t":-7.0},{"d":"115/07/27","f":-214.4,"t":164.0},{"d":"115/07/28","f":-191.2,"t":0.0},{"d":"115/07/29","f":218.4,"t":0.2}]},{"code":5269,"name":"祥碩","sector":"IC設計","group":"IC設計","price":1455.0,"high52w":2550,"pe":17.12,"momentum":0.0085,"foreignChg20d":0.0123,"trustChg20d":0.0046,"capital":7.48,"grossMargin":50.83,"eps2026e":85,"eps2025":72.7,"eps2024":51.57,"foreign5dSum":934,"trust5dSum":45,"dealer5dSum":-147,"foreign5dPosDays":3,"trust5dPosDays":5,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":60.1,"t":49.0},{"d":"115/07/17","f":-90.0,"t":109.0},{"d":"115/07/20","f":84.2,"t":65.0},{"d":"115/07/21","f":-99.0,"t":38.0},{"d":"115/07/22","f":31.3,"t":39.0},{"d":"115/07/23","f":-95.0,"t":28.0},{"d":"115/07/24","f":-30.4,"t":8.0},{"d":"115/07/27","f":8.6,"t":1.0},{"d":"115/07/28","f":690.4,"t":3.0},{"d":"115/07/29","f":359.9,"t":5.0}]},{"code":5483,"name":"中美晶","sector":"材料(矽晶圓)","group":"材料","price":166.5,"high52w":328,"pe":16.65,"momentum":-0.001,"foreignChg20d":-0.0073,"trustChg20d":0.0053,"capital":64.12,"grossMargin":28.32,"eps2026e":10,"eps2025":6.71,"eps2024":9.23,"foreign5dSum":-6708,"trust5dSum":351,"dealer5dSum":-884,"foreign5dPosDays":2,"trust5dPosDays":3,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-621.9,"t":124.6},{"d":"115/07/17","f":4294.2,"t":1729.5},{"d":"115/07/20","f":-3638.0,"t":782.2},{"d":"115/07/21","f":-1343.8,"t":155.0},{"d":"115/07/22","f":3341.5,"t":279.2},{"d":"115/07/23","f":-6847.4,"t":-1071.0},{"d":"115/07/24","f":-1388.7,"t":2066.4},{"d":"115/07/27","f":1029.3,"t":11.2},{"d":"115/07/28","f":2568.6,"t":-707.0},{"d":"115/07/29","f":-2069.4,"t":51.0}]},{"code":5536,"name":"聖暉","sector":"工程(廠務)","group":"工程/自動化","price":944.0,"high52w":1130,"pe":28.61,"momentum":0.0028,"foreignChg20d":0.0091,"trustChg20d":-0.0035,"capital":6.2,"grossMargin":25,"eps2026e":33,"eps2025":28.42,"eps2024":21.09,"foreign5dSum":229,"trust5dSum":-82,"dealer5dSum":-1,"foreign5dPosDays":5,"trust5dPosDays":3,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":116.4,"t":-1.3},{"d":"115/07/17","f":-191.9,"t":29.0},{"d":"115/07/20","f":29.5,"t":47.5},{"d":"115/07/21","f":145.8,"t":-114.8},{"d":"115/07/22","f":236.0,"t":-92.9},{"d":"115/07/23","f":97.9,"t":-50.0},{"d":"115/07/24","f":50.5,"t":-64.0},{"d":"115/07/27","f":2.1,"t":22.1},{"d":"115/07/28","f":57.9,"t":9.0},{"d":"115/07/29","f":20.7,"t":1.4}]},{"code":6187,"name":"萬潤","sector":"設備","group":"設備與耗材","price":890.0,"high52w":1215,"pe":40.45,"momentum":-0.0004,"foreignChg20d":-0.0091,"trustChg20d":0.0084,"capital":9.66,"grossMargin":51.78,"eps2026e":22,"eps2025":15.46,"eps2024":14.57,"foreign5dSum":193,"trust5dSum":-345,"dealer5dSum":-27,"foreign5dPosDays":3,"trust5dPosDays":2,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-141.9,"t":19.1},{"d":"115/07/17","f":-574.0,"t":16.7},{"d":"115/07/20","f":6.6,"t":10.2},{"d":"115/07/21","f":113.1,"t":0.2},{"d":"115/07/22","f":-475.1,"t":1106.0},{"d":"115/07/23","f":-157.5,"t":56.0},{"d":"115/07/24","f":-383.2,"t":-440.0},{"d":"115/07/27","f":526.3,"t":327.0},{"d":"115/07/28","f":147.6,"t":0.0},{"d":"115/07/29","f":59.3,"t":-287.7}]},{"code":6640,"name":"均華","sector":"設備(測試分選)","group":"設備與耗材","price":790.0,"high52w":1620,"pe":27.24,"momentum":0.0007,"foreignChg20d":0.0004,"trustChg20d":0.0011,"capital":2.85,"grossMargin":44.9,"eps2026e":29,"eps2025":12.77,"eps2024":14.62,"foreign5dSum":26,"trust5dSum":30,"dealer5dSum":-14,"foreign5dPosDays":2,"trust5dPosDays":2,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":16.0,"t":1.0},{"d":"115/07/17","f":-38.8,"t":0.0},{"d":"115/07/20","f":12.0,"t":-1.0},{"d":"115/07/21","f":2.1,"t":0.0},{"d":"115/07/22","f":-6.0,"t":0.0},{"d":"115/07/23","f":-10.2,"t":0.0},{"d":"115/07/24","f":-23.0,"t":20.0},{"d":"115/07/27","f":27.0,"t":10.0},{"d":"115/07/28","f":-3.0,"t":0.0},{"d":"115/07/29","f":35.0,"t":0.0}]},{"code":6789,"name":"采鈺","sector":"封測/感測","group":"封測與檢測","price":424.0,"high52w":603,"pe":42.4,"momentum":0.0038,"foreignChg20d":0.008,"trustChg20d":-0.0004,"capital":31.83,"grossMargin":26.6,"eps2026e":10,"eps2025":6.01,"eps2024":5.49,"foreign5dSum":1619,"trust5dSum":12,"dealer5dSum":-169,"foreign5dPosDays":4,"trust5dPosDays":3,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":223.6,"t":-1.0},{"d":"115/07/17","f":-447.9,"t":-158.0},{"d":"115/07/20","f":417.6,"t":16.0},{"d":"115/07/21","f":399.6,"t":2.0},{"d":"115/07/22","f":322.2,"t":-2.0},{"d":"115/07/23","f":266.2,"t":-1.0},{"d":"115/07/24","f":-246.7,"t":-2.0},{"d":"115/07/27","f":123.9,"t":1.0},{"d":"115/07/28","f":356.8,"t":4.0},{"d":"115/07/29","f":1118.6,"t":10.0}]},{"code":7734,"name":"印能科技","sector":"設備","group":"設備與耗材","price":3090.0,"high52w":3765,"pe":56.18,"momentum":0.008,"foreignChg20d":0.0033,"trustChg20d":0.0127,"capital":2.8,"grossMargin":65.25,"eps2026e":55,"eps2025":35.67,"eps2024":38.31,"foreign5dSum":58,"trust5dSum":139,"dealer5dSum":-12,"foreign5dPosDays":3,"trust5dPosDays":4,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-0.5,"t":98.0},{"d":"115/07/17","f":-50.6,"t":53.0},{"d":"115/07/20","f":-37.1,"t":32.0},{"d":"115/07/21","f":119.0,"t":-24.0},{"d":"115/07/22","f":4.7,"t":57.0},{"d":"115/07/23","f":24.0,"t":31.0},{"d":"115/07/24","f":-12.0,"t":68.5},{"d":"115/07/27","f":36.9,"t":0.0},{"d":"115/07/28","f":-20.0,"t":35.0},{"d":"115/07/29","f":29.0,"t":4.0}]},{"code":7822,"name":"倍利科","sector":"設備","group":"設備與耗材","price":845.0,"high52w":1705,"pe":56.33,"momentum":0.0005,"foreignChg20d":0.001,"trustChg20d":0.0,"capital":4.56,"grossMargin":60.47,"eps2026e":15,"eps2025":8.79,"eps2024":4.77,"foreign5dSum":63,"trust5dSum":0,"dealer5dSum":-12,"foreign5dPosDays":3,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-10.0,"t":0.0},{"d":"115/07/17","f":5.0,"t":0.0},{"d":"115/07/20","f":2.8,"t":0.0},{"d":"115/07/21","f":-24.0,"t":0.0},{"d":"115/07/22","f":8.0,"t":0.0},{"d":"115/07/23","f":-5.0,"t":0.0},{"d":"115/07/24","f":-17.0,"t":0.0},{"d":"115/07/27","f":20.0,"t":0.0},{"d":"115/07/28","f":53.2,"t":0.0},{"d":"115/07/29","f":11.8,"t":0.0}]},{"code":8086,"name":"宏捷科","sector":"化合物半導體","group":"化合物半導體","price":106.5,"high52w":178,"pe":17.75,"momentum":0.0001,"foreignChg20d":0.0008,"trustChg20d":-0.0006,"capital":19.65,"grossMargin":30.44,"eps2026e":6,"eps2025":3.36,"eps2024":2.65,"foreign5dSum":537,"trust5dSum":-121,"dealer5dSum":-101,"foreign5dPosDays":2,"trust5dPosDays":0,"foreignHoldPct":"","smallBaseTrust":false,"thinBaseEPS":false,"flow10":[{"d":"115/07/16","f":-132.8,"t":0.4},{"d":"115/07/17","f":-183.8,"t":-1.0},{"d":"115/07/20","f":144.3,"t":0.0},{"d":"115/07/21","f":3.0,"t":0.0},{"d":"115/07/22","f":-209.3,"t":0.0},{"d":"115/07/23","f":-158.5,"t":0.0},{"d":"115/07/24","f":-461.7,"t":0.0},{"d":"115/07/27","f":450.7,"t":-121.0},{"d":"115/07/28","f":-417.6,"t":0.0},{"d":"115/07/29","f":1124.2,"t":0.0}]}]/*END_DATA*/;
+
+const FUNDAMENTALS_DATE = "2026/06/08";
+
+const state = {
+  weights: { momentum: 35, growth: 35, valuation: 30 },
+  groups: new Set(),
+  search: '',
+  sortKey: 'composite',
+  sortDir: 'desc',
+  recoSignature: null,
+};
+
+function clip(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function fmtPct(v, digits){ digits = digits===undefined?1:digits; return (v*100).toFixed(digits) + '%'; }
+function fmtSignedPct(v, digits){ digits = digits===undefined?1:digits; const p=(v*100).toFixed(digits); return (v>=0?'+':'') + p + '%'; }
+function fmtNum(v, digits){ digits = digits===undefined?2:digits; return Number(v).toLocaleString('zh-TW',{minimumFractionDigits:0,maximumFractionDigits:digits}); }
+function rocToDate(s){ const parts = s.split('/'); return (parseInt(parts[0],10)+1911) + '/' + parts[1] + '/' + parts[2]; }
+
+function computeScores(list, weights){
+  const n = list.length;
+  const byPe = list.slice().sort((a,b)=>a.pe-b.pe);
+  const peRank = new Map();
+  byPe.forEach((s,i)=> peRank.set(s.code, i));
+  const wsum = (weights.momentum + weights.growth + weights.valuation) || 1;
+  const wm = weights.momentum/wsum, wg = weights.growth/wsum, wv = weights.valuation/wsum;
+
+  return list.map(s=>{
+    const momBase = clip(s.momentum, -0.03, 0.03);
+    const momNorm = (momBase+0.03)/0.06*100;
+    const consistency = ((s.foreign5dPosDays + s.trust5dPosDays)/10)*100;
+    let momentumScore = momNorm*0.7 + consistency*0.3;
+    if(s.smallBaseTrust) momentumScore *= 0.6; // 基期過小的增幅打折，避免統計假象拿高分
+
+    const divisor = Math.max(Math.abs(s.eps2025), 1);
+    const rawGrowth = (s.eps2026e - s.eps2025)/divisor;
+    const growthClipped = clip(rawGrowth, -1, 2);
+    let growthScore = (growthClipped+1)/3*100;
+    if(s.thinBaseEPS) growthScore = Math.min(growthScore, 65); // EPS基期過小時，成長分數封頂
+
+    const rank = peRank.get(s.code);
+    const peScore = n>1 ? 100*(1-rank/(n-1)) : 50;
+    const pctOfHigh = s.price/s.high52w;
+    const distFromHigh = clip(1-pctOfHigh,0,1)*100;
+    const valuationScore = peScore*0.6 + distFromHigh*0.4;
+
+    const composite = momentumScore*wm + growthScore*wg + valuationScore*wv;
+
+    return Object.assign({}, s, {
+      momentumScore, growthScore, valuationScore, composite,
+      peRank: rank, distFromHigh, pctOfHigh, growthPct: rawGrowth,
+      flowDays: s.foreign5dPosDays + s.trust5dPosDays,
+    });
+  });
+}
+
+function riskFlags(s){
+  const flags = [];
+  if(s.pe > 60) flags.push('本益比偏高(>60x)');
+  if(s.eps2025 < 0) flags.push('2025年曾轉虧');
+  if(s.smallBaseTrust) flags.push('近期籌碼變動極端，宜謹慎解讀');
+  if(s.foreign5dSum < 0 && s.trust5dSum < 0) flags.push('近5日雙法人賣超');
+  return flags;
+}
+
+function buildBullets(s, totalInList){
+  const fDir = s.foreignChg20d>=0 ? '買超' : '賣超';
+  const tDir = s.trustChg20d>=0 ? '買超' : '賣超';
+  const b1 = '近5日外資買超 <b>'+s.foreign5dPosDays+'/5</b> 天、投信買超 <b>'+s.trust5dPosDays+'/5</b> 天；近10個交易日外資合計'+fDir+' <b>'+fmtPct(Math.abs(s.foreignChg20d))+'</b>（占股本比例），投信合計'+tDir+' <b>'+fmtPct(Math.abs(s.trustChg20d))+'</b>'+(s.smallBaseTrust?'（波動偏大，宜謹慎解讀）':'');
+  const gDir = s.eps2026e>=s.eps2025 ? '成長' : '下滑';
+  const b2 = '預估2026年EPS <b>'+fmtNum(s.eps2026e)+'</b> 元，較2025年全年 <b>'+fmtNum(s.eps2025)+'</b> 元'+gDir+'約 <b>'+fmtPct(Math.abs(s.growthPct))+'</b>'+(s.thinBaseEPS?'（2025年獲利基期極小，成長率僅供參考）':'')+'；毛利率 <b>'+fmtNum(s.grossMargin,1)+'%</b>';
+  const b3 = '本益比 <b>'+fmtNum(s.pe,1)+'x</b>，在目前 '+totalInList+' 檔名單中排名第 <b>'+(s.peRank+1)+'</b> 低；股價為52週高點的 <b>'+(s.pctOfHigh*100).toFixed(0)+'%</b>，距高點還有約 '+s.distFromHigh.toFixed(0)+'% 空間';
+  return [
+    {tag:'籌碼', html:b1},
+    {tag:'獲利', html:b2},
+    {tag:'估值', html:b3},
+  ];
+}
+
+function getWeights(){
+  return {
+    momentum: parseInt(document.getElementById('wMomentum').value,10),
+    growth: parseInt(document.getElementById('wGrowth').value,10),
+    valuation: parseInt(document.getElementById('wValuation').value,10),
+  };
+}
+
+function getFiltered(){
+  let list = DATA.slice();
+  if(state.groups.size){ list = list.filter(s=>state.groups.has(s.group)); }
+  if(state.search.trim()){
+    const q = state.search.trim().toLowerCase();
+    list = list.filter(s=> s.name.toLowerCase().indexOf(q)>=0 || String(s.code).indexOf(q)>=0);
+  }
+  return list;
+}
+
+function currentSignature(weights, filtered){
+  return JSON.stringify(weights) + '|' + filtered.map(s=>s.code).join(',');
+}
+
+function renderGroupFilters(){
+  const groups = Array.from(new Set(DATA.map(s=>s.group)));
+  const el = document.getElementById('groupFilters');
+  el.innerHTML = '';
+  groups.forEach(g=>{
+    const btn = document.createElement('button');
+    btn.className = 'chip-toggle';
+    btn.textContent = g;
+    btn.setAttribute('type','button');
+    btn.addEventListener('click', ()=>{
+      if(state.groups.has(g)){ state.groups.delete(g); btn.classList.remove('active'); }
+      else { state.groups.add(g); btn.classList.add('active'); }
+      renderTable();
+      updateStaleState();
+    });
+    el.appendChild(btn);
+  });
+}
+
+function sortList(list){
+  const key = state.sortKey, dir = state.sortDir === 'asc' ? 1 : -1;
+  return list.slice().sort((a,b)=>{
+    let av = a[key], bv = b[key];
+    if(typeof av === 'string'){ return av.localeCompare(bv) * dir; }
+    return ((av||0) - (bv||0)) * dir;
+  });
+}
+
+function renderTable(){
+  const weights = getWeights();
+  const filtered = getFiltered();
+  const scored = computeScores(filtered, weights);
+  const sorted = sortList(scored);
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  sorted.forEach(s=>{
+    const tr = document.createElement('tr');
+    tr.className = 'data-row';
+    const flags = riskFlags(s);
+    const momCls = s.momentum>=0 ? 'up' : 'down';
+    const growthCls = s.growthPct>=0 ? 'up' : 'down';
+    tr.innerHTML =
+      '<td><div class="name-cell"><span class="nm">'+s.name+(flags.length?'<span class="flag-dot" title="'+flags.join('、')+'"></span>':'')+'</span><span class="cd">'+s.code+'</span></div></td>'+
+      '<td style="text-align:left" class="sector-tag">'+s.group+'</td>'+
+      '<td>'+fmtNum(s.price,1)+'</td>'+
+      '<td>'+(s.pctOfHigh*100).toFixed(0)+'%</td>'+
+      '<td>'+fmtNum(s.pe,1)+'x</td>'+
+      '<td class="'+momCls+'">'+fmtSignedPct(s.momentum)+'</td>'+
+      '<td>'+s.foreign5dPosDays+'/5 · '+s.trust5dPosDays+'/5</td>'+
+      '<td>'+fmtNum(s.grossMargin,1)+'%</td>'+
+      '<td class="'+growthCls+'">'+fmtSignedPct(s.growthPct)+'</td>'+
+      '<td><div class="mini-score"><div class="track"><div class="fill" style="width:'+clip(s.composite,0,100).toFixed(0)+'%"></div></div><span>'+s.composite.toFixed(0)+'</span></div></td>';
+    tr.addEventListener('click', ()=> toggleDetail(tr, s));
+    tbody.appendChild(tr);
+  });
+
+  document.querySelectorAll('#stockTable thead th').forEach(th=>{
+    th.classList.toggle('sorted', th.dataset.key === state.sortKey);
+  });
+}
+
+function toggleDetail(tr, s){
+  const existing = tr.nextElementSibling;
+  if(existing && existing.classList.contains('detail-row')){
+    existing.remove();
+    return;
+  }
+  document.querySelectorAll('.detail-row').forEach(r=>r.remove());
+  const maxAbs = Math.max(1, ...s.flow10.map(d=>Math.max(Math.abs(d.f), Math.abs(d.t))));
+  const buildChart = (key)=> s.flow10.map(d=>{
+    const v = d[key];
+    const h = Math.abs(v)/maxAbs*26;
+    const cls = v>=0 ? 'pos' : 'neg';
+    const style = v>=0 ? ('height:'+h+'px') : ('height:'+h+'px');
+    return '<div class="flow-col"><div class="flow-bar '+cls+'" style="'+style+'" title="'+d.d+'：'+v.toLocaleString()+'張"></div></div>';
+  }).join('');
+  const first = s.flow10[0] ? s.flow10[0].d : '';
+  const last = s.flow10[s.flow10.length-1] ? s.flow10[s.flow10.length-1].d : '';
+
+  const dtr = document.createElement('tr');
+  dtr.className = 'detail-row';
+  const td = document.createElement('td');
+  td.colSpan = 10;
+  td.innerHTML =
+    '<div class="detail-grid">'+
+      '<div class="flow-block"><div class="flow-title">近10日外資買賣超（張）</div><div class="flow-chart">'+buildChart('f')+'</div><div class="flow-range">'+first+' → '+last+'</div></div>'+
+      '<div class="flow-block"><div class="flow-title">近10日投信買賣超（張）</div><div class="flow-chart">'+buildChart('t')+'</div><div class="flow-range">'+first+' → '+last+'</div></div>'+
+      '<div class="detail-metrics">'+
+        '<span>股本 <b>'+fmtNum(s.capital,1)+' 億</b></span><span>外資持股比重 <b>'+s.foreignHoldPct+'</b></span>'+
+        '<span>2024年EPS <b>'+fmtNum(s.eps2024)+'</b></span><span>2025年全年EPS <b>'+fmtNum(s.eps2025)+'</b></span>'+
+        '<span>52週高點 <b>'+fmtNum(s.high52w,1)+'</b></span><span>綜合評分 <b>'+s.composite.toFixed(1)+' / 100</b></span>'+
+      '</div>'+
+    '</div>';
+  dtr.appendChild(td);
+  tr.parentNode.insertBefore(dtr, tr.nextSibling);
+}
+
+function generateRecommendation(){
+  const weights = getWeights();
+  const filtered = getFiltered();
+  const scored = computeScores(filtered, weights);
+  const top3 = scored.slice().sort((a,b)=>b.composite-a.composite).slice(0,3);
+  const area = document.getElementById('recoArea');
+  area.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'reco-grid';
+
+  top3.forEach((s,i)=>{
+    const bullets = buildBullets(s, filtered.length);
+    const flags = riskFlags(s);
+    const card = document.createElement('div');
+    card.className = 'reco-card';
+    card.innerHTML =
+      '<div class="reco-rank">No.'+(i+1)+'</div>'+
+      '<div class="reco-name-row"><span class="reco-name">'+s.name+'</span><span class="reco-code">'+s.code+'</span></div>'+
+      '<div class="reco-tags"><span class="chip">'+s.sector+'</span>'+flags.map(f=>'<span class="chip risk">'+f+'</span>').join('')+'</div>'+
+      '<div class="score-row"><div class="score-bar-track"><div class="score-bar-fill" style="width:'+clip(s.composite,0,100).toFixed(0)+'%"></div></div><span class="score-num">'+s.composite.toFixed(0)+'</span></div>'+
+      '<div class="reco-bullets">'+bullets.map(b=>'<div class="b"><span class="b-tag">'+b.tag+'</span><span class="b-text">'+b.html+'</span></div>').join('')+'</div>';
+    grid.appendChild(card);
+  });
+
+  area.appendChild(grid);
+  document.getElementById('recoScope').textContent =
+    '權重 籌碼'+weights.momentum+' · 成長'+weights.growth+' · 估值'+weights.valuation+
+    '　｜　範圍 '+(state.groups.size ? Array.from(state.groups).join('、') : '全部27檔') +
+    (state.search ? '　｜　搜尋「'+state.search+'」' : '');
+
+  state.recoSignature = currentSignature(weights, filtered);
+  updateStaleState();
+  if(typeof area.scrollIntoView === 'function'){ area.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+}
+
+function updateStaleState(){
+  const weights = getWeights();
+  const filtered = getFiltered();
+  const sig = currentSignature(weights, filtered);
+  const btn = document.getElementById('generateBtn');
+  if(state.recoSignature === null){ btn.classList.remove('is-stale'); return; }
+  btn.classList.toggle('is-stale', sig !== state.recoSignature);
+}
+
+function wireWeightSlider(id, key, labelId){
+  const el = document.getElementById(id);
+  el.addEventListener('input', ()=>{
+    document.getElementById(labelId).textContent = el.value;
+    renderTable();
+    updateStaleState();
+  });
+}
+
+function init(){
+  const first = DATA[0];
+  const latest = first.flow10[first.flow10.length-1];
+  document.getElementById('snapshotDate').textContent = latest ? rocToDate(latest.d) : '—';
+  document.getElementById('fundamentalsDate').textContent = FUNDAMENTALS_DATE;
+
+  renderGroupFilters();
+  wireWeightSlider('wMomentum','momentum','wMomentumVal');
+  wireWeightSlider('wGrowth','growth','wGrowthVal');
+  wireWeightSlider('wValuation','valuation','wValuationVal');
+
+  document.getElementById('searchBox').addEventListener('input', (e)=>{
+    state.search = e.target.value;
+    renderTable();
+    updateStaleState();
+  });
+
+  document.querySelectorAll('#stockTable thead th').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.key;
+      if(state.sortKey === key){ state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc'; }
+      else { state.sortKey = key; state.sortDir = 'desc'; }
+      renderTable();
+    });
+  });
+
+  document.getElementById('generateBtn').addEventListener('click', generateRecommendation);
+
+  renderTable();
+  generateRecommendation();
+}
+
+init();
+</script>
+
+</body>
+</html>
