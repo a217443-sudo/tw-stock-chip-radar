@@ -13,19 +13,31 @@ even if the watchlist itself is edited later.
 
 Data sources (public, no API key): openapi.twse.com.tw, www.twse.com.tw, www.tpex.org.tw
 """
-import json, re, sys, os, datetime, subprocess
+import json, re, sys, os, time, datetime, subprocess
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_PATH = os.path.join(REPO_ROOT, "index.html")
 
 
-def fetch_json(url, timeout=20):
-    result = subprocess.run(
-        ["curl", "-s", "--max-time", str(timeout), "-A", "Mozilla/5.0 (compatible; stock-radar-bot/1.0)", url],
-        capture_output=True, timeout=timeout + 5,
-    )
-    text = result.stdout.decode("utf-8", errors="replace")
-    return json.loads(text)
+def fetch_json(url, timeout=60, retries=3):
+    """Fetch JSON via curl. Some public endpoints (esp. TPEx's ~4MB mainboard
+    quotes dump) can be slow on shared CI runners; retry with backoff on both
+    network failures and truncated/invalid JSON rather than crashing the whole run."""
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            result = subprocess.run(
+                ["curl", "-s", "--max-time", str(timeout), "--retry", "2", "--retry-delay", "2",
+                 "-A", "Mozilla/5.0 (compatible; stock-radar-bot/1.0)", url],
+                capture_output=True, timeout=timeout + 15,
+            )
+            text = result.stdout.decode("utf-8", errors="replace")
+            return json.loads(text)
+        except Exception as e:
+            last_err = e
+            if attempt < retries:
+                time.sleep(3 * attempt)
+    raise last_err
 
 
 def roc_str(d):
@@ -41,19 +53,29 @@ def clip(v, lo, hi):
 
 
 def get_latest_prices():
+    """Fetch both exchanges independently -- if one is down/unreachable after
+    retries, still return whatever the other gave us instead of crashing the
+    whole run (the caller already carries forward prior values for any stock
+    it can't get a fresh price for)."""
     twse_prices, tpex_prices = {}, {}
-    twse = fetch_json("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL")
-    for d in twse:
-        try:
-            twse_prices[d["Code"]] = float(d["ClosingPrice"])
-        except Exception:
-            continue
-    tpex = fetch_json("https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes")
-    for d in tpex:
-        try:
-            tpex_prices[d["SecuritiesCompanyCode"]] = float(d["Close"])
-        except Exception:
-            continue
+    try:
+        twse = fetch_json("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL")
+        for d in twse:
+            try:
+                twse_prices[d["Code"]] = float(d["ClosingPrice"])
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"WARN: TWSE price fetch failed after retries: {e}", file=sys.stderr)
+    try:
+        tpex = fetch_json("https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes")
+        for d in tpex:
+            try:
+                tpex_prices[d["SecuritiesCompanyCode"]] = float(d["Close"])
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"WARN: TPEx price fetch failed after retries: {e}", file=sys.stderr)
     return twse_prices, tpex_prices
 
 
