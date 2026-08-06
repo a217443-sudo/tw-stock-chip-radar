@@ -1,4 +1,4 @@
-name: Daily data refresh
+name: Daily data refresh and deploy
 
 on:
   schedule:
@@ -7,9 +7,11 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
-  group: daily-update
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -36,3 +38,23 @@ jobs:
             git commit -m "auto: daily data refresh $(date -u +%Y-%m-%d)"
             git push
           fi
+
+  deploy:
+    needs: refresh
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
