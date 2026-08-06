@@ -52,30 +52,88 @@ def clip(v, lo, hi):
     return max(lo, min(hi, v))
 
 
-def get_latest_prices():
-    """Fetch both exchanges independently -- if one is down/unreachable after
-    retries, still return whatever the other gave us instead of crashing the
-    whole run (the caller already carries forward prior values for any stock
-    it can't get a fresh price for)."""
-    twse_prices, tpex_prices = {}, {}
+def get_twse_closes_for_date(date):
+    """TWSE per-date closing-price report (每日收盤行情全部). Unlike the
+    'opendata/STOCK_DAY_ALL' snapshot -- which was observed to lag by a full
+    trading day or more (e.g. still showing 08/05 at 08/07 05:00 local time) --
+    this endpoint reliably has same-day data once TWSE settles the day's trades."""
+    url = f"https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date={ymd(date)}&type=ALL&response=json"
     try:
-        twse = fetch_json("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL")
-        for d in twse:
+        d = fetch_json(url)
+    except Exception:
+        return None
+    if d.get("stat") != "OK" or d.get("date") != ymd(date):
+        return None
+    out = {}
+    for t in d.get("tables", []):
+        fields = t.get("fields") or []
+        if "證券代號" not in fields or "收盤價" not in fields:
+            continue
+        ci, pi = fields.index("證券代號"), fields.index("收盤價")
+        for row in t.get("data", []):
             try:
-                twse_prices[d["Code"]] = float(d["ClosingPrice"])
+                out[row[ci].strip()] = float(row[pi].replace(",", ""))
             except Exception:
                 continue
-    except Exception as e:
-        print(f"WARN: TWSE price fetch failed after retries: {e}", file=sys.stderr)
+    return out or None
+
+
+def get_tpex_closes_for_date(date):
+    """TPEx per-date closing-price report (上櫃股票行情), explicit date query --
+    same rationale as get_twse_closes_for_date: don't trust an unlabelled
+    'latest' snapshot, ask for a specific date and verify the response echoes it back."""
+    url = f"https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?l=zh-tw&d={roc_str(date)}&se=EW&o=json"
     try:
-        tpex = fetch_json("https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes")
-        for d in tpex:
-            try:
-                tpex_prices[d["SecuritiesCompanyCode"]] = float(d["Close"])
-            except Exception:
-                continue
-    except Exception as e:
-        print(f"WARN: TPEx price fetch failed after retries: {e}", file=sys.stderr)
+        d = fetch_json(url)
+    except Exception:
+        return None
+    if str(d.get("stat", "")).lower() != "ok" or d.get("date") != ymd(date):
+        return None
+    tables = d.get("tables", [])
+    if not tables:
+        return None
+    fields = tables[0].get("fields") or []
+    if "代號" not in fields or "收盤" not in fields:
+        return None
+    ci, pi = fields.index("代號"), fields.index("收盤")
+    out = {}
+    for row in tables[0].get("data", []):
+        try:
+            out[row[ci].strip()] = float(row[pi].replace(",", ""))
+        except Exception:
+            continue
+    return out or None
+
+
+def get_latest_prices(lookback_calendar_days=8):
+    """Walk backward from today on BOTH exchanges independently, using
+    explicit-date queries that we verify actually echo back the date we asked
+    for, until each has data (handles weekends/holidays and same-day publish
+    delay without ever silently serving an unknown-vintage 'latest' price)."""
+    today = datetime.date.today()
+    twse_prices, twse_date = {}, None
+    d = today
+    for _ in range(lookback_calendar_days):
+        result = get_twse_closes_for_date(d)
+        if result:
+            twse_prices, twse_date = result, d
+            break
+        d -= datetime.timedelta(days=1)
+    else:
+        print("WARN: no TWSE closing-price data found in lookback window", file=sys.stderr)
+
+    tpex_prices, tpex_date = {}, None
+    d = today
+    for _ in range(lookback_calendar_days):
+        result = get_tpex_closes_for_date(d)
+        if result:
+            tpex_prices, tpex_date = result, d
+            break
+        d -= datetime.timedelta(days=1)
+    else:
+        print("WARN: no TPEx closing-price data found in lookback window", file=sys.stderr)
+
+    print(f"Price dates used -- TWSE: {twse_date}, TPEx: {tpex_date}", file=sys.stderr)
     return twse_prices, tpex_prices
 
 
