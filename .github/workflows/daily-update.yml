@@ -2,7 +2,12 @@ name: Daily data refresh and deploy
 
 on:
   schedule:
-    - cron: '0 9 * * 1-5'   # 09:00 UTC = 17:00 Asia/Taipei, Mon-Fri
+    # GitHub cron is best-effort and 整點(top of hour) slots are the most congested,
+    # which delayed the old '0 9' run by 4-9 hours. Use off-peak minutes, and run
+    # twice (script is idempotent) so a late/missed first run or late-published
+    # 三大法人 data is corrected by the second.
+    - cron: '23 8 * * 1-5'    # 08:23 UTC = 16:23 Asia/Taipei, Mon-Fri
+    - cron: '47 10 * * 1-5'   # 10:47 UTC = 18:47 Asia/Taipei, Mon-Fri
   workflow_dispatch: {}
 
 permissions:
