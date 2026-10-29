@@ -137,6 +137,51 @@ def get_latest_prices(lookback_calendar_days=8):
     return twse_prices, tpex_prices
 
 
+SEASON_LABEL = {1: "Q1", 2: "H1", 3: "9M", 4: "FY"}  # income-statement figures are year-to-date
+
+
+def get_fundamentals():
+    """Official quarterly fundamentals (capital, YTD gross margin, YTD EPS) for
+    every listed (TWSE) and OTC (TPEx) company. Returns {code: {...}}.
+    The datasets always hold each company's latest filed season, so this picks up
+    Q3 (due mid-Nov), annual (due end-Mar) etc. automatically. Any dataset that
+    fails to download is simply skipped -> callers carry the stored values forward."""
+    sources = [
+        ("https://openapi.twse.com.tw/v1/opendata/t187ap03_L", "公司代號", "實收資本額", "basic"),
+        ("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O", "SecuritiesCompanyCode", "Paidin.Capital.NTDollars", "basic"),
+        ("https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci", "公司代號", None, "income"),
+        ("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap06_O_ci", "SecuritiesCompanyCode", None, "income"),
+    ]
+    out = {}
+    for url, key, capkey, kind in sources:
+        try:
+            rows = fetch_json(url)
+        except Exception as e:
+            print(f"WARN: fundamentals fetch failed ({kind}) {url}: {e}", file=sys.stderr)
+            continue
+        for r in rows:
+            code = str(r.get(key, "")).strip()
+            if not code:
+                continue
+            rec = out.setdefault(code, {})
+            try:
+                if kind == "basic":
+                    rec["capital"] = round(float(r[capkey]) / 1e8, 2)
+                else:
+                    rev = float(r["營業收入"])
+                    gp = float(r["營業毛利（毛損）"] or 0)
+                    year = int(r.get("年度") or r.get("Year"))
+                    season = int(r.get("季別") or r.get("Season"))
+                    if rev > 0:
+                        rec["grossMargin"] = round(gp / rev * 100, 2)
+                    rec["epsYtd"] = float(r["基本每股盈餘（元）"])
+                    rec["period"] = f"{(year + 1911) % 100}{SEASON_LABEL.get(season, 'S' + str(season))}"
+                    rec["periodKey"] = year * 10 + season
+            except Exception:
+                continue
+    return out
+
+
 def get_twse_t86(date):
     url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={ymd(date)}&selectType=ALL&response=json"
     try:
@@ -219,6 +264,7 @@ def main():
     prev_data = json.loads(m.group(1))
     codes = [s["code"] for s in prev_data]
 
+    fundamentals = get_fundamentals()
     twse_prices, tpex_prices = get_latest_prices()
     exchange_of = {}
     for c in codes:
@@ -240,6 +286,17 @@ def main():
             new_data.append(s)
             continue
 
+        fnd = fundamentals.get(str(c), {})
+        s = dict(s)
+        if fnd.get("capital"):
+            s["capital"] = fnd["capital"]
+        # only move forward in time (never replace a newer stored period with an older one)
+        if fnd.get("periodKey") and fnd["periodKey"] >= s.get("periodKey", 0):
+            if "grossMargin" in fnd:
+                s["grossMargin"] = fnd["grossMargin"]
+            s["gmPeriod"] = fnd["period"]
+            s["epsYtd"] = fnd["epsYtd"]
+            s["periodKey"] = fnd["periodKey"]
         capital = s["capital"]
         eps2026e = s["eps2026e"]
         shares_outstanding = capital * 1e7
