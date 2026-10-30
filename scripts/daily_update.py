@@ -137,7 +137,7 @@ def get_latest_prices(lookback_calendar_days=8):
     return twse_prices, tpex_prices
 
 
-SEASON_LABEL = {1: "Q1", 2: "H1", 3: "9M", 4: "FY"}  # income-statement figures are year-to-date
+SEASON_LABEL = {1: "第1季", 2: "上半年(至Q2)", 3: "前三季(至Q3)", 4: "全年"}  # income-statement figures are year-to-date
 
 
 def get_fundamentals():
@@ -175,7 +175,7 @@ def get_fundamentals():
                     if rev > 0:
                         rec["grossMargin"] = round(gp / rev * 100, 2)
                     rec["epsYtd"] = float(r["基本每股盈餘（元）"])
-                    rec["period"] = f"{(year + 1911) % 100}{SEASON_LABEL.get(season, 'S' + str(season))}"
+                    rec["period"] = f"{(year + 1911) % 100}年{SEASON_LABEL.get(season, 'S' + str(season))}"
                     rec["periodKey"] = year * 10 + season
             except Exception:
                 continue
