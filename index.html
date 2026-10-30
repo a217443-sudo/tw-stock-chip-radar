@@ -216,7 +216,16 @@
   .mini-score{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;}
   .mini-score .track{width:44px;height:5px;border-radius:99px;background:var(--line);overflow:hidden;}
   .mini-score .fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--brass));}
-  .flag-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);margin-left:.35rem;vertical-align:middle;}
+  .flag-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:.3rem;vertical-align:middle;cursor:help;}
+  .fk-val{--fk:#d1493f;} .fk-chip{--fk:#3b82c4;} .fk-est{--fk:#e08a1e;}
+  .flag-dot.fk-val,.flag-dot.fk-chip,.flag-dot.fk-est{background:var(--fk);}
+  .chip.risk.fk-val,.chip.risk.fk-chip,.chip.risk.fk-est{color:var(--fk);border-color:color-mix(in srgb, var(--fk) 50%, transparent);background:color-mix(in srgb, var(--fk) 10%, transparent);}
+  .flag-legend{display:flex;flex-wrap:wrap;gap:.35rem 1.2rem;font-size:.74rem;color:var(--ink-muted);margin:.2rem 0 .7rem;line-height:1.7;}
+  .flag-legend .lg{display:inline-flex;align-items:baseline;gap:.35rem;}
+  .flag-legend .flag-dot{margin:0;cursor:default;}
+  .flag-legend b{color:var(--ink);font-weight:600;}
+  .detail-flags{grid-column:1 / -1;display:flex;flex-direction:column;gap:.25rem;margin-top:.3rem;}
+  .detail-flags span{display:flex;align-items:baseline;gap:.4rem;}
 
   tr.detail-row td{background:var(--paper);padding:1rem 1.1rem 1.3rem;text-align:left;cursor:default;}
   .detail-grid{display:flex;gap:2.2rem;flex-wrap:wrap;font-family:var(--font-cjk);}
@@ -296,6 +305,10 @@
     <input class="search-box" id="searchBox" type="text" placeholder="搜尋股票名稱或代號…">
   </div>
   <p class="table-note">點擊欄位標題排序；點擊任一列可展開近10日外資／投信買賣超（張）。紅色＝買超／上升，綠色＝賣超／下降（依台股慣例）。</p>
+  <div class="flag-legend"><span><b>股票名稱旁的小圓點＝提醒該檔數字要多一分保留（不是買賣訊號）。滑鼠移上去看原因：</b></span>
+    <span class="lg"><i class="flag-dot fk-val"></i><b>紅</b>估值／獲利風險：本益比超過60倍、2025年曾虧損</span>
+    <span class="lg"><i class="flag-dot fk-chip"></i><b>藍</b>籌碼轉弱：近5日外資與投信同時賣超、籌碼變動極端</span>
+    <span class="lg"><i class="flag-dot fk-est"></i><b>橘</b>預估不確定：2026年EPS預估是舊值、來源信心低、波動大或沒有預估</span></div>
 
   <div class="table-wrap">
     <table id="stockTable">
@@ -410,14 +423,22 @@ function computeScores(list, weights){
 }
 
 function riskFlags(s){
+  // k: val=估值／獲利風險(紅)  chip=籌碼轉弱(藍)  est=預估不確定(橘)
   const flags = [];
-  if(s.pe > 60) flags.push('本益比偏高(>60x)');
-  if(s.eps2025 < 0) flags.push('2025年曾轉虧');
-  if(s.smallBaseTrust) flags.push('近期籌碼變動極端，宜謹慎解讀');
-  if(s.foreign5dSum < 0 && s.trust5dSum < 0) flags.push('近5日雙法人賣超');
-  if(s.noForwardEstimate) flags.push('無2026年預估，暫以2025年實際值代替');
-  if(s.estNote) flags.push(s.estNote);
+  if(s.pe > 60) flags.push({k:'val', t:'本益比偏高(>60x)'});
+  if(s.eps2025 < 0) flags.push({k:'val', t:'2025年曾轉虧'});
+  if(s.foreign5dSum < 0 && s.trust5dSum < 0) flags.push({k:'chip', t:'近5日外資與投信同時賣超'});
+  if(s.smallBaseTrust) flags.push({k:'chip', t:'近期籌碼變動極端，宜謹慎解讀'});
+  if(s.noForwardEstimate) flags.push({k:'est', t:'無2026年預估，暫以2025年實際值代替'});
+  if(s.estNote) flags.push({k:'est', t:s.estNote});
   return flags;
+}
+function flagDots(flags){
+  const kinds = ['val','chip','est'];
+  return kinds.map(k=>{
+    const ts = flags.filter(f=>f.k===k).map(f=>f.t);
+    return ts.length ? '<span class="flag-dot fk-'+k+'" title="'+ts.join('、')+'"></span>' : '';
+  }).join('');
 }
 
 function buildBullets(s, totalInList){
@@ -502,7 +523,7 @@ function renderTable(){
     const momCls = s.momentum>=0 ? 'up' : 'down';
     const growthCls = s.growthPct>=0 ? 'up' : 'down';
     tr.innerHTML =
-      '<td><div class="name-cell"><span class="nm">'+s.name+(flags.length?'<span class="flag-dot" title="'+flags.join('、')+'"></span>':'')+'</span><span class="cd">'+s.code+'</span></div></td>'+
+      '<td><div class="name-cell"><span class="nm">'+s.name+flagDots(flags)+'</span><span class="cd">'+s.code+'</span></div></td>'+
       '<td style="text-align:left" class="sector-tag">'+s.group+'</td>'+
       '<td>'+fmtNum(s.price,1)+'</td>'+
       '<td>'+(s.pctOfHigh*100).toFixed(0)+'%</td>'+
@@ -551,6 +572,7 @@ function toggleDetail(tr, s){
         '<span>股本 <b>'+fmtNum(s.capital,1)+' 億</b></span><span>外資持股比重 <b>'+s.foreignHoldPct+'</b></span>'+
         '<span>2024年EPS <b>'+fmtNum(s.eps2024)+'</b></span><span>2025年全年EPS <b>'+fmtNum(s.eps2025)+'</b></span>'+
         '<span>52週高點 <b>'+fmtNum(s.high52w,1)+'</b></span><span>綜合評分 <b>'+s.composite.toFixed(1)+' / 100</b></span>'+
+        (riskFlags(s).length?'<div class="detail-flags">'+riskFlags(s).map(f=>'<span><i class="flag-dot fk-'+f.k+'" style="margin:0"></i>'+f.t+'</span>').join('')+'</div>':'')+
         '<span>'+(s.gmPeriod||'')+'累計EPS <b>'+(s.epsYtd!=null?fmtNum(s.epsYtd):'—')+'</b></span><span>2026預估來源 <b>'+(s.eps2026eSrc||'沿用前一版')+'</b></span>'+
       '</div>'+
     '</div>';
@@ -576,7 +598,7 @@ function generateRecommendation(){
     card.innerHTML =
       '<div class="reco-rank">No.'+(i+1)+'</div>'+
       '<div class="reco-name-row"><span class="reco-name">'+s.name+'</span><span class="reco-code">'+s.code+'</span></div>'+
-      '<div class="reco-tags"><span class="chip">'+s.sector+'</span>'+flags.map(f=>'<span class="chip risk">'+f+'</span>').join('')+'</div>'+
+      '<div class="reco-tags"><span class="chip">'+s.sector+'</span>'+flags.map(f=>'<span class="chip risk fk-'+f.k+'">'+f.t+'</span>').join('')+'</div>'+
       '<div class="score-row"><div class="score-bar-track"><div class="score-bar-fill" style="width:'+clip(s.composite,0,100).toFixed(0)+'%"></div></div><span class="score-num">'+s.composite.toFixed(0)+'</span></div>'+
       '<div class="reco-bullets">'+bullets.map(b=>'<div class="b"><span class="b-tag">'+b.tag+'</span><span class="b-text">'+b.html+'</span></div>').join('')+'</div>';
     grid.appendChild(card);
