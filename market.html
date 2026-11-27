@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="全部上市公司依產業分類，選類別後列出綜合評分前十名，每個交易日自動更新">
+<title>台股全市場分類排行</title>
+<style>
+  :root{--paper:#eef0ee;--panel:#fff;--ink:#171a1f;--ink-muted:#5b636a;--ink-faint:#8b939a;--line:rgba(23,26,31,.12);--line-strong:rgba(23,26,31,.22);--brass:#a97a2f;--brass-strong:#8a611f;--brass-soft:rgba(169,122,47,.14);--teal:#276f68;--up:#c2453b;--down:#1f8a5c;
+    --font-cjk:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;--font-mono:ui-monospace,"Cascadia Code",Consolas,monospace;}
+  @media (prefers-color-scheme:dark){:root{--paper:#0f1216;--panel:#171b21;--ink:#e8e9ea;--ink-muted:#9aa1a8;--ink-faint:#6d757d;--line:rgba(255,255,255,.1);--line-strong:rgba(255,255,255,.2);--brass:#d3a35a;--brass-strong:#e8bc72;--brass-soft:rgba(211,163,90,.16);--teal:#4fa89e;--up:#e2685d;--down:#3fbf85;}}
+  *{box-sizing:border-box;} body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-cjk);line-height:1.55;}
+  .wrap{max-width:1180px;margin:0 auto;padding:1.75rem 1rem 4rem;}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
+  header{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;}
+  h1{font-size:1.35rem;margin:0;} h2{font-size:.95rem;margin:1.6rem 0 .6rem;}
+  nav a{color:var(--brass-strong);font-size:.85rem;}
+  .dates{font-size:.78rem;color:var(--ink-muted);margin:.5rem 0 0;} .dates b{color:var(--ink);}
+  .stale{color:var(--up);font-weight:700;}
+  .cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.55rem;}
+  button{font-family:inherit;color:inherit;cursor:pointer;}
+  .cat{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:.7rem .8rem;text-align:left;}
+  .cat strong{display:block;font-size:.95rem;} .cat span{font-size:.72rem;color:var(--ink-faint);}
+  .cat[aria-pressed="true"]{border-color:var(--brass);background:var(--brass-soft);}
+  .chips{display:flex;flex-wrap:wrap;gap:.45rem;}
+  .chip{background:transparent;border:1px solid var(--line-strong);border-radius:99px;padding:.3rem .75rem;font-size:.8rem;color:var(--ink-muted);}
+  .chip[aria-pressed="true"]{border-color:var(--brass);background:var(--brass-soft);color:var(--brass-strong);}
+  .controls{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem;align-items:center;font-size:.8rem;color:var(--ink-muted);margin-top:.9rem;}
+  .controls input[type=range]{width:110px;vertical-align:middle;accent-color:var(--brass);}
+  .table-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;margin-top:.8rem;}
+  table{width:100%;border-collapse:collapse;font-size:.8rem;font-variant-numeric:tabular-nums;}
+  th,td{padding:.55rem .65rem;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  th{font-size:.72rem;color:var(--ink-muted);}
+  th:nth-child(2),td:nth-child(2){text-align:left;position:sticky;left:0;background:var(--panel);}
+  td .nm{font-weight:700;} td small{display:block;color:var(--ink-faint);font-family:var(--font-mono);}
+  .rank{font-family:var(--font-mono);color:var(--brass);font-weight:700;}
+  .score{font-family:var(--font-mono);font-weight:700;font-size:.95rem;}
+  .up{color:var(--up);} .down{color:var(--down);}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:.3rem;vertical-align:middle;cursor:help;}
+  .val{background:#d1493f;} .flow{background:#3b82c4;} .data{background:#e08a1e;}
+  .legend,.note{font-size:.74rem;color:var(--ink-muted);margin:.6rem 0 0;line-height:1.8;}
+  .legend .dot{margin:0 .25rem 0 .8rem;cursor:default;}
+  .empty{border:1px dashed var(--line-strong);border-radius:6px;padding:2rem 1rem;text-align:center;color:var(--ink-faint);font-size:.88rem;margin-top:1.2rem;}
+  details{margin-top:1.6rem;font-size:.8rem;color:var(--ink-muted);} summary{cursor:pointer;color:var(--ink);font-weight:700;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>台股全市場分類排行</h1>
+    <nav><a href="./">回到我的觀察名單</a></nav>
+  </header>
+  <p class="dates" id="dates">資料載入中…</p>
+
+  <h2>步驟一：選一個類別</h2>
+  <div class="cats" id="cats"></div>
+
+  <div id="step2" hidden>
+    <h2>步驟二：細分產業（可不選）</h2>
+    <div class="chips" id="subs"></div>
+    <div class="controls">
+      <label>籌碼 <input type="range" id="wFlow" min="0" max="100" value="35"> <b id="wFlowV">35</b></label>
+      <label>營收成長 <input type="range" id="wGrow" min="0" max="100" value="35"> <b id="wGrowV">35</b></label>
+      <label>估值 <input type="range" id="wVal" min="0" max="100" value="30"> <b id="wValV">30</b></label>
+      <label><input type="checkbox" id="liquid" checked> 排除當日成交量低於 500 張</label>
+    </div>
+  </div>
+
+  <div id="result"><div class="empty">選擇類別後，這裡會列出該類別綜合評分前十名。</div></div>
+
+  <details>
+    <summary>前十名是怎麼排出來的？</summary>
+    <p>只比較你選的類別裡的股票，每個指標先換算成「在這群股票中的百分位排名」（0～100），再依權重加總。<br>
+    <b>籌碼</b>：近 10 個交易日外資＋投信淨買超股數占發行股數的比例，越高越好。<br>
+    <b>營收成長</b>：今年累計營收比去年同期的增減百分比，越高越好。<br>
+    <b>估值</b>：本益比越低（占六成）、殖利率越高（占四成）越好。本益比為證交所公布的歷史本益比，不是預估值。<br>
+    <b>入選門檻</b>：要有本益比（近四季有獲利）、有營收資料；預設排除當日成交量低於 500 張的股票。虧損股不會出現在排行。</p>
+    <p>金融保險業的營收性質與一般公司不同，成長排名僅供參考。範圍為證交所上市公司，不含上櫃、ETF、特別股。</p>
+  </details>
+  <p class="note">資料來源為臺灣證券交易所公開資料。排名只是依上述公開指標做的量化排序，用來縮小觀察範圍，不構成任何買賣建議。</p>
+</div>
+
+<script>
+const IND = {'01':'水泥','02':'食品','03':'塑膠','04':'紡織纖維','05':'電機機械','06':'電器電纜','08':'玻璃陶瓷','09':'造紙','10':'鋼鐵','11':'橡膠','12':'汽車','14':'建材營造','15':'航運','16':'觀光餐旅','17':'金融保險','18':'貿易百貨','19':'綜合','20':'其他','21':'化學','22':'生技醫療','23':'油電燃氣','24':'半導體','25':'電腦及週邊','26':'光電','27':'通信網路','28':'電子零組件','29':'電子通路','30':'資訊服務','31':'其他電子','35':'綠能環保','36':'數位雲端','37':'運動休閒','38':'居家生活','91':'存託憑證'};
+const GROUPS = [
+  ['半導體',['24']],
+  ['電腦、網通與資訊服務',['25','27','30','36']],
+  ['電子零組件與光電',['28','26','31','29']],
+  ['金融保險',['17']],
+  ['傳產原物料',['01','03','21','10','11','08','09','23']],
+  ['機電、汽車與綠能',['05','06','12','35']],
+  ['航運',['15']],
+  ['建材營造',['14']],
+  ['生技醫療',['22']],
+  ['民生消費',['02','04','18','16','37','38']],
+  ['其他',['19','20','91']],
+];
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = (v, d=1) => v==null ? '—' : Number(v).toLocaleString('zh-TW',{maximumFractionDigits:d});
+const signed = (v, d=1) => v==null ? '—' : '<span class="'+(v>=0?'up':'down')+'">'+(v>=0?'+':'')+fmt(v,d)+'%</span>';
+let STOCKS = [], META = {}, group = null, sub = null;
+
+function percentile(list, get){
+  const sorted = list.map(get).sort((a,b)=>a-b);
+  const n = sorted.length;
+  return v => n < 2 ? 50 : (sorted.indexOf(v) + sorted.lastIndexOf(v)) / 2 / (n-1) * 100;
+}
+function flags(s){
+  const f = [];
+  if(s.pe > 60) f.push(['val','本益比超過60倍']);
+  if(s.f5 < 0 && s.t5 < 0) f.push(['flow','近5日外資與投信同時賣超']);
+  if(Math.abs(s.revCum) > 100) f.push(['data','營收增減超過100%，可能受基期或一次性認列影響']);
+  return f;
+}
+function inScope(s){ return sub ? s.ind === sub : GROUPS[group][1].includes(s.ind); }
+
+function render(){
+  const pool = STOCKS.filter(inScope);
+  const liquid = $('liquid').checked;
+  const list = pool.filter(s => s.pe > 0 && s.revCum != null && s.f10Pct != null && (!liquid || s.vol >= 500));
+  const w = {flow:+$('wFlow').value, grow:+$('wGrow').value, val:+$('wVal').value};
+  ['Flow','Grow','Val'].forEach(k => $('w'+k+'V').textContent = $('w'+k).value);
+  const total = (w.flow + w.grow + w.val) || 1;
+  const pFlow = percentile(list, s=>s.f10Pct + s.t10Pct);
+  const pGrow = percentile(list, s=>s.revCum);
+  const pPe = percentile(list, s=>-s.pe);
+  const pYld = percentile(list, s=>s.yld || 0);
+  const top = list.map(s => {
+    const a = pFlow(s.f10Pct + s.t10Pct), b = pGrow(s.revCum), c = pPe(-s.pe)*0.6 + pYld(s.yld || 0)*0.4;
+    return Object.assign({}, s, {score:(a*w.flow + b*w.grow + c*w.val)/total, a, b, c});
+  }).sort((x,y)=>y.score-x.score).slice(0,10);
+
+  const title = sub ? IND[sub] : GROUPS[group][0];
+  if(!top.length){ $('result').innerHTML = '<div class="empty">「'+esc(title)+'」目前沒有符合門檻的股票，可以取消成交量限制再看看。</div>'; return; }
+  const rows = top.map((s,i)=>{
+    const f = flags(s);
+    const dots = f.map(x=>'<span class="dot '+x[0]+'" title="'+esc(x[1])+'"></span>').join('');
+    return '<tr><td class="rank">'+(i+1)+'</td><td><span class="nm">'+esc(s.name)+'</span>'+dots+'<small>'+esc(s.code)+' · '+esc(IND[s.ind]||s.ind)+'</small></td>'+
+      '<td class="score" title="籌碼 '+s.a.toFixed(0)+' / 成長 '+s.b.toFixed(0)+' / 估值 '+s.c.toFixed(0)+'">'+s.score.toFixed(0)+'</td>'+
+      '<td>'+fmt(s.close,2)+'</td><td>'+signed(s.chg,2)+'</td>'+
+      '<td>'+signed(s.f10Pct,2)+'</td><td>'+signed(s.t10Pct,2)+'</td>'+
+      '<td>'+signed(s.revCum)+'</td><td>'+fmt(s.pe)+'</td><td>'+(s.yld==null?'—':fmt(s.yld,2)+'%')+'</td>'+
+      '<td>'+fmt(s.eps,2)+'</td><td>'+(s.gm==null?'—':fmt(s.gm)+'%')+'</td><td>'+fmt(s.vol,0)+'</td></tr>';
+  }).join('');
+  $('result').innerHTML = '<h2>「'+esc(title)+'」前 '+top.length+' 名<span class="note">　（此範圍共 '+pool.length+' 檔，符合門檻 '+list.length+' 檔）</span></h2>'+
+    '<p class="legend">名稱旁圓點是提醒，不是買賣訊號（滑鼠移上去看原因）：<span class="dot val"></span>估值偏高<span class="dot flow"></span>籌碼轉弱<span class="dot data"></span>營收數字波動大</p>'+
+    '<div class="table-wrap"><table><thead><tr><th>#</th><th>股票</th><th>綜合分</th><th>收盤價</th><th>當日漲跌</th><th>外資10日</th><th>投信10日</th><th>累計營收年增</th><th>本益比</th><th>殖利率</th><th>累計EPS</th><th>毛利率</th><th>成交量(張)</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<p class="note">外資／投信 10 日＝淨買賣超股數占發行股數比例。累計 EPS 與毛利率期別：'+esc(META.finPeriod)+'（年初累計）。</p>';
+}
+
+function pressed(container, el){ container.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b===el))); }
+
+function selectGroup(i, el){
+  group = i; sub = null; pressed($('cats'), el);
+  const inds = GROUPS[i][1];
+  $('step2').hidden = false;
+  const box = $('subs'); box.innerHTML = '';
+  const options = inds.length > 1 ? [[null,'全部']].concat(inds.map(c=>[c, IND[c]])) : [[null, IND[inds[0]]]];
+  options.forEach(([code,label], n)=>{
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = label; b.setAttribute('aria-pressed', String(n===0));
+    b.addEventListener('click', ()=>{ sub = code; pressed(box, b); render(); });
+    box.appendChild(b);
+  });
+  render();
+}
+
+function init(data){
+  META = data;
+  STOCKS = data.rows.map(r => Object.fromEntries(data.fields.map((k,i)=>[k, r[i]])));
+  const rm = data.revMonth;
+  const revText = rm ? (parseInt(rm.slice(0,-2),10)+1911)+' 年 1～'+parseInt(rm.slice(-2),10)+' 月' : '—';
+  const age = (Date.now() - new Date(data.priceDate+'T00:00:00+08:00')) / 86400000;
+  $('dates').innerHTML = '收盤價 <b>'+esc(data.priceDate)+'</b> · 法人買賣超 <b>'+esc(data.flowFrom)+' ～ '+esc(data.flowTo)+'</b> · 累計營收 <b>'+revText+'</b> · 財報 <b>'+esc(data.finPeriod)+'</b> · 共 '+STOCKS.length+' 檔上市公司'+
+    (age > 4 ? ' <span class="stale">（資料超過 4 天未更新）</span>' : '');
+  GROUPS.forEach(([name,inds], i)=>{
+    const n = STOCKS.filter(s=>inds.includes(s.ind)).length;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'cat'; b.setAttribute('aria-pressed','false');
+    b.innerHTML = '<strong>'+esc(name)+'</strong><span>'+n+' 檔</span>';
+    b.addEventListener('click', ()=>selectGroup(i, b));
+    $('cats').appendChild(b);
+  });
+  ['wFlow','wGrow','wVal','liquid'].forEach(id => $(id).addEventListener('input', ()=>{ if(group!==null) render(); }));
+}
+
+fetch('market.json', {cache:'no-cache'})
+  .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(init)
+  .catch(() => { $('dates').textContent = '資料載入失敗，請稍後重新整理。'; });
+</script>
+</body>
+</html>
